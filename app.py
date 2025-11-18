@@ -30,6 +30,16 @@ def index():
     """提供前端页面"""
     return send_from_directory('.', 'index.html')
 
+@app.route('/apple-touch-icon.png')
+def apple_icon():
+    """提供 Apple Touch Icon"""
+    return send_from_directory('.', 'apple-touch-icon.png')
+
+@app.route('/favicon.ico')
+def favicon():
+    """提供 favicon"""
+    return send_from_directory('.', 'favicon.ico')
+
 @app.route('/api/trips', methods=['GET'])
 def get_trips():
     """获取所有旅行计划"""
