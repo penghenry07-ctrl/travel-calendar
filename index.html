@@ -2,6 +2,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2025-2026 旅行日历</title>
+    
+    <!-- 网站图标 -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    
+    <!-- iOS Web App 配置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="旅行日历">
     <style>
         * {
             margin: 0;
@@ -132,6 +142,32 @@
             text-underline-offset: 2px;
         }
         
+        /* 调休上班日样式 */
+        .day.workday {
+            color: #0066cc;
+            font-weight: 700;
+            position: relative;
+        }
+        
+        .day.workday::after {
+            content: '▲';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: #0066cc;
+        }
+        
+        /* 如果既是调休日又有旅行计划 */
+        .day.trip.workday::after {
+            color: white;
+        }
+        
+        .day.trip.workday {
+            color: white;
+        }
+        
         /* 选择状态样式 */
         .day.selecting-start {
             background: #FF6B6B !important;
@@ -245,6 +281,100 @@
             display: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             max-width: 300px;
+        }
+        
+        /* 移动端详情弹窗 */
+        .detail-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 10001;
+            min-width: 280px;
+            max-width: 90%;
+            display: none;
+            animation: popupSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes popupSlideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+        
+        .detail-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+        }
+        
+        .detail-popup h3 {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .detail-popup-content {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.8;
+        }
+        
+        .detail-popup-item {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .detail-popup-label {
+            font-weight: 600;
+            color: #333;
+            min-width: 70px;
+        }
+        
+        .detail-popup-value {
+            color: #666;
+        }
+        
+        .detail-popup-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #666;
+            transition: background 0.2s;
+        }
+        
+        .detail-popup-close:hover {
+            background: #e0e0e0;
+        }
+        
+        .detail-popup-close:active {
+            background: #d0d0d0;
         }
         
         .controls {
@@ -592,6 +722,14 @@
         </div>
     </div>
     
+    <!-- 移动端详情弹窗 -->
+    <div class="detail-popup-overlay" id="detailPopupOverlay"></div>
+    <div class="detail-popup" id="detailPopup">
+        <button class="detail-popup-close" id="detailPopupClose">×</button>
+        <h3 id="detailPopupTitle"></h3>
+        <div class="detail-popup-content" id="detailPopupContent"></div>
+    </div>
+    
     <div class="container">
         <div class="header-container">
             <h1>🗓️ 2025-2026 Travel Calendar</h1>
@@ -876,7 +1014,7 @@
             '2025-10-04': '国庆节', '2025-10-05': '国庆节', '2025-10-06': '国庆节',
             '2025-10-07': '国庆节',
             '2026-01-01': '元旦', '2026-01-02': '元旦', '2026-01-03': '元旦',
-            '2026-02-16': '春节', '2026-02-17': '春节', '2026-02-18': '春节',
+            '2026-02-15': '春节', '2026-02-16': '春节', '2026-02-17': '春节', '2026-02-18': '春节',
             '2026-02-19': '春节', '2026-02-20': '春节', '2026-02-21': '春节',
             '2026-02-22': '春节', '2026-02-23': '春节',
             '2026-04-04': '清明节', '2026-04-05': '清明节', '2026-04-06': '清明节',
@@ -887,6 +1025,16 @@
             '2026-10-01': '国庆节', '2026-10-02': '国庆节', '2026-10-03': '国庆节',
             '2026-10-04': '国庆节', '2026-10-05': '国庆节', '2026-10-06': '国庆节',
             '2026-10-07': '国庆节'
+        };
+        
+        // 调休上班日（周末需要上班）
+        const workdays = {
+            '2026-01-04': '调休上班',
+            '2026-02-14': '调休上班',
+            '2026-02-28': '调休上班',
+            '2026-05-09': '调休上班',
+            '2026-09-20': '调休上班',
+            '2026-10-10': '调休上班'
         };
 
         let editingIndex = -1;
@@ -1009,6 +1157,13 @@
                 const dateStr = dayElement.getAttribute('data-date');
                 handleDayHover(dateStr);
             }, true);
+            
+            // 移动端长按显示详情
+            setupMobileDetailPopup();
+            
+            // 关闭详情弹窗
+            document.getElementById('detailPopupClose').addEventListener('click', closeDetailPopup);
+            document.getElementById('detailPopupOverlay').addEventListener('click', closeDetailPopup);
         }
 
         // 处理日期点击
@@ -1067,6 +1222,148 @@
                     }
                 }
             });
+        }
+
+        // ============ 移动端详情弹窗功能 ============
+        let longPressTimer = null;
+        let longPressTriggered = false;
+        
+        function setupMobileDetailPopup() {
+            const calendar = document.getElementById('calendar');
+            
+            // 检测触摸开始
+            calendar.addEventListener('touchstart', (e) => {
+                const dayElement = e.target.closest('.day');
+                if (!dayElement || dayElement.classList.contains('empty')) return;
+                
+                // 如果点击的是没有内容的普通日期，不触发详情
+                const hasContent = dayElement.classList.contains('trip') || 
+                                 dayElement.classList.contains('holiday') ||
+                                 dayElement.classList.contains('workday');
+                if (!hasContent) return;
+                
+                const dateStr = dayElement.getAttribute('data-date');
+                longPressTriggered = false;
+                
+                // 设置长按定时器 (500ms)
+                longPressTimer = setTimeout(() => {
+                    longPressTriggered = true;
+                    showDetailPopup(dateStr, dayElement);
+                    // 阻止默认行为和事件冒泡
+                    e.preventDefault();
+                }, 500);
+            }, { passive: false });
+            
+            // 检测触摸结束
+            calendar.addEventListener('touchend', (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                
+                // 如果触发了长按，阻止点击事件
+                if (longPressTriggered) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    longPressTriggered = false;
+                }
+            });
+            
+            // 检测触摸移动(取消长按)
+            calendar.addEventListener('touchmove', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+        }
+        
+        function showDetailPopup(dateStr, dayElement) {
+            const popup = document.getElementById('detailPopup');
+            const overlay = document.getElementById('detailPopupOverlay');
+            const title = document.getElementById('detailPopupTitle');
+            const content = document.getElementById('detailPopupContent');
+            
+            // 获取旅行信息
+            const trip = getTripForDate(dateStr);
+            const holiday = getHolidayForDate(dateStr);
+            const workday = getWorkdayForDate(dateStr);
+            
+            let htmlContent = '';
+            
+            if (trip) {
+                // 显示旅行信息
+                const days = getTripDays(trip);
+                title.textContent = trip.destination;
+                htmlContent = `
+                    <div class="detail-popup-item">
+                        <span class="detail-popup-label">📅 开始:</span>
+                        <span class="detail-popup-value">${trip.start}</span>
+                    </div>
+                    <div class="detail-popup-item">
+                        <span class="detail-popup-label">📅 结束:</span>
+                        <span class="detail-popup-value">${trip.end}</span>
+                    </div>
+                    <div class="detail-popup-item">
+                        <span class="detail-popup-label">⏱️ 天数:</span>
+                        <span class="detail-popup-value">${days} 天</span>
+                    </div>
+                `;
+                
+                if (holiday) {
+                    htmlContent += `
+                        <div class="detail-popup-item">
+                            <span class="detail-popup-label">🎉 节假日:</span>
+                            <span class="detail-popup-value">${holiday}</span>
+                        </div>
+                    `;
+                }
+                
+                if (workday) {
+                    htmlContent += `
+                        <div class="detail-popup-item">
+                            <span class="detail-popup-label">💼 提醒:</span>
+                            <span class="detail-popup-value" style="color: #0066cc; font-weight: 600;">${workday}</span>
+                        </div>
+                    `;
+                }
+            } else if (holiday || workday) {
+                // 显示节假日或调休信息
+                title.textContent = workday || holiday;
+                htmlContent = `
+                    <div class="detail-popup-item">
+                        <span class="detail-popup-label">📅 日期:</span>
+                        <span class="detail-popup-value">${dateStr}</span>
+                    </div>
+                `;
+                
+                // 如果既是节假日又是调休日（理论上不应该出现）
+                if (holiday && workday) {
+                    htmlContent += `
+                        <div class="detail-popup-item">
+                            <span class="detail-popup-label">🎉 节假日:</span>
+                            <span class="detail-popup-value">${holiday}</span>
+                        </div>
+                        <div class="detail-popup-item">
+                            <span class="detail-popup-label">💼 提醒:</span>
+                            <span class="detail-popup-value" style="color: #0066cc; font-weight: 600;">${workday}</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            content.innerHTML = htmlContent;
+            
+            // 显示弹窗
+            overlay.style.display = 'block';
+            popup.style.display = 'block';
+        }
+        
+        function closeDetailPopup() {
+            const popup = document.getElementById('detailPopup');
+            const overlay = document.getElementById('detailPopupOverlay');
+            popup.style.display = 'none';
+            overlay.style.display = 'none';
         }
 
         // 完成选择并显示弹窗
@@ -1438,6 +1735,10 @@
             return holidays[dateStr];
         }
         
+        function getWorkdayForDate(dateStr) {
+            return workdays[dateStr];
+        }
+        
         function getDaysInMonth(year, month) {
             return new Date(year, month, 0).getDate();
         }
@@ -1498,6 +1799,7 @@
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const trip = getTripForDate(dateStr);
                     const holiday = getHolidayForDate(dateStr);
+                    const workday = getWorkdayForDate(dateStr);
                     const inSelection = isInSelectionRange(dateStr);
                     const isComplete = isSelectionComplete(dateStr);
                     
@@ -1520,6 +1822,11 @@
                     if (holiday) {
                         className += ' holiday';
                         tooltipText = tooltipText ? `${tooltipText} | ${holiday}` : holiday;
+                    }
+                    
+                    if (workday) {
+                        className += ' workday';
+                        tooltipText = tooltipText ? `${tooltipText} | ${workday}` : workday;
                     }
                     
                     // 添加选择状态的样式
@@ -1623,8 +1930,9 @@
         
         // 导出为独立HTML文件
         window.exportHTML = function() {
+            // 使用正则表达式动态查找并替换 trips 数据
             const htmlContent = document.documentElement.outerHTML.replace(
-                'trips = [{"start":"2025-10-23","end":"2025-11-05","destination":"澳洲","color":"#E74C3C"},{"start":"2025-12-05","end":"2025-12-13","destination":"越南芽庄","color":"#2ECC71"},{"start":"2026-01-14","end":"2026-01-23","destination":"北海道","color":"#3498DB"},{"start":"2026-02-15","end":"2026-02-25","destination":"越南富国岛","color":"#9B59B6"},{"start":"2026-07-25","end":"2026-08-03","destination":"坦桑尼亚","color":"#F39C12"},{"start":"2026-03-16","end":"2026-03-31","destination":"斯里兰卡马尔代夫","color":"#FF6B6B"},{"start":"2026-04-27","end":"2026-05-08","destination":"巴厘岛科莫多岛","color":"#4ECDC4"}];',
+                /trips\s*=\s*\[[\s\S]*?\];/,  // 正则表达式匹配 trips = [...];
                 `trips = ${JSON.stringify(trips)};`
             );
             
