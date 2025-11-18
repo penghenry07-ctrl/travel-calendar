@@ -453,6 +453,29 @@
             transform: translateY(-2px);
         }
         
+        .btn-refresh {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn-refresh:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .btn-refresh:active {
+            transform: translateY(0);
+        }
+        
         .trips-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -591,7 +614,7 @@
                 page-break-after: avoid;
             }
             
-            .controls, .btn-print, .btn-export, .selection-hint, .modal-overlay, .modal, #modalDeleteBtn {
+            .controls, .btn-print, .btn-export, .btn-refresh, .selection-hint, .modal-overlay, .modal, #modalDeleteBtn {
                 display: none !important;
             }
             
@@ -734,6 +757,7 @@
         <div class="header-container">
             <h1>🗓️ 2025-2026 Travel Calendar</h1>
             <div style="display: flex; gap: 10px;">
+                <button class="btn-refresh" onclick="refreshPage()">🔄 刷新</button>
                 <button class="btn-print" onclick="printCalendar()">🖨️ 打印日历</button>
                 <button class="btn btn-export" onclick="exportHTML()">📤 导出分享</button>
             </div>
@@ -1930,21 +1954,53 @@
         
         // 导出为独立HTML文件
         window.exportHTML = function() {
-            // 使用正则表达式动态查找并替换 trips 数据
-            const htmlContent = document.documentElement.outerHTML.replace(
-                /trips\s*=\s*\[[\s\S]*?\];/,  // 正则表达式匹配 trips = [...];
-                `trips = ${JSON.stringify(trips)};`
-            );
-            
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `旅行日历_${new Date().toISOString().split('T')[0]}.html`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            // 先从服务器获取最新数据，然后导出
+            fetch('/api/trips')
+                .then(response => response.json())
+                .then(serverTrips => {
+                    // 使用服务器的最新数据
+                    const tripsToExport = serverTrips.length > 0 ? serverTrips : trips;
+                    
+                    console.log('导出的旅行数据:', tripsToExport); // 调试信息
+                    
+                    // 使用正则表达式动态查找并替换 trips 数据
+                    const htmlContent = document.documentElement.outerHTML.replace(
+                        /trips\s*=\s*\[[\s\S]*?\];/,  // 正则表达式匹配 trips = [...];
+                        `trips = ${JSON.stringify(tripsToExport)};`
+                    );
+                    
+                    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `旅行日历_${new Date().toISOString().split('T')[0]}.html`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('获取最新数据失败:', error);
+                    // 如果获取失败，使用当前内存中的数据
+                    alert('获取最新数据失败，将使用当前显示的数据导出');
+                    const htmlContent = document.documentElement.outerHTML.replace(
+                        /trips\s*=\s*\[[\s\S]*?\];/,
+                        `trips = ${JSON.stringify(trips)};`
+                    );
+                    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `旅行日历_${new Date().toISOString().split('T')[0]}.html`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                });
+        }
+        
+        window.refreshPage = function() {
+            location.reload();
         }
         
         // 初始化
