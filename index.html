@@ -441,14 +441,14 @@
         
         /* 优化3：删除按钮样式 */
         .btn-danger {
-            background: #dc3545;
-            color: white;
+            background: #ffb3b3;
+            color: #333;
         }
         
         .btn-danger:hover {
-            background: #c82333;
+            background: #ffa3a3;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+            box-shadow: 0 4px 12px rgba(255, 179, 179, 0.4);
         }
         
         .controls {
@@ -517,10 +517,10 @@
             font-weight: 700;
         }
         
-        /* 优化1：列表改为3列网格布局 */
+        /* 优化1：列表改为4列网格布局 */
         .trips-list {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 12px;
         }
         
@@ -580,21 +580,21 @@
         }
         
         .btn-edit {
-            background: #ffc107;
+            background: #f5deb3;
             color: #333;
         }
         
         .btn-edit:hover {
-            background: #ffb300;
+            background: #f0d9a8;
         }
         
         .btn-delete {
-            background: #dc3545;
-            color: white;
+            background: #ffb3b3;
+            color: #333;
         }
         
         .btn-delete:hover {
-            background: #c82333;
+            background: #ffa3a3;
         }
         
         .tooltip {
@@ -968,6 +968,36 @@
                     }
                 });
             }
+            
+            // 优化：ESC键取消选择和关闭弹窗
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const tripModal = document.getElementById('tripModal');
+                    const detailModal = document.getElementById('detailModal');
+                    
+                    // 场景1：关闭添加/编辑弹窗
+                    if (tripModal.style.display === 'block') {
+                        closeModal();
+                    }
+                    // 场景2：关闭详情弹窗（移动端）
+                    else if (detailModal.style.display === 'block') {
+                        closeDetailModal();
+                    }
+                    // 场景3：取消日期选择
+                    else if (isSelecting && firstSelectedDate) {
+                        cancelSelection();
+                    }
+                }
+            });
+        }
+        
+        // 取消日期选择
+        function cancelSelection() {
+            isSelecting = false;
+            firstSelectedDate = null;
+            lastSelectedDate = null;
+            currentHoverDate = null;
+            render();
         }
         
         // 显示详情弹窗（移动端）
