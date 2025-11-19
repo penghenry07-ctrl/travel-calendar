@@ -178,16 +178,19 @@
             font-weight: 700;
         }
         
+        /* 优化2：选择范围中间的日期样式 */
         .day.in-selection {
             background: #FFE5B4 !important;
             color: #333 !important;
             border: 1px dashed #FFB347 !important;
         }
         
-        .day.hover-selection {
-            background: #FFDAB9 !important;
+        /* 优化2：鼠标悬停时的预览样式 */
+        .day.hover-end {
+            background: #FFD700 !important;
             color: #333 !important;
-            opacity: 0.8;
+            border: 2px solid #FFB347 !important;
+            font-weight: 700;
         }
         
         .day.selection-complete {
@@ -241,7 +244,7 @@
             font-size: 14px;
         }
         
-        /* 新增：详情弹窗样式 */
+        /* 详情弹窗样式 */
         .detail-modal {
             position: fixed;
             background: white;
@@ -330,21 +333,22 @@
         }
         
         .detail-btn-edit {
-            background: #667eea;
-            color: white;
-        }
-        
-        .detail-btn-edit:hover {
-            background: #5568d3;
-        }
-        
-        .detail-btn-close {
             background: #e0e0e0;
             color: #666;
         }
         
-        .detail-btn-close:hover {
+        .detail-btn-edit:hover {
             background: #d0d0d0;
+        }
+        
+        /* 优化4：移动端关闭按钮高亮（绿色） */
+        .detail-btn-close {
+            background: #28a745;
+            color: white;
+        }
+        
+        .detail-btn-close:hover {
+            background: #218838;
         }
         
         .form-group {
@@ -435,6 +439,18 @@
             background: #d0d0d0;
         }
         
+        /* 优化3：删除按钮样式 */
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+        
         .controls {
             text-align: center;
             margin-bottom: 25px;
@@ -501,9 +517,10 @@
             font-weight: 700;
         }
         
+        /* 优化1：列表改为3列网格布局 */
         .trips-list {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 12px;
         }
         
@@ -512,8 +529,7 @@
             padding: 15px;
             border-radius: 12px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             transition: all 0.2s;
         }
@@ -527,7 +543,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            flex: 1;
+            margin-bottom: 10px;
         }
         
         .trip-color {
@@ -560,7 +576,7 @@
         .trip-actions .btn {
             padding: 8px 16px;
             font-size: 13px;
-            min-width: 60px;
+            flex: 1;
         }
         
         .btn-edit {
@@ -594,7 +610,7 @@
             display: none;
         }
         
-        /* 打印样式 - 完全采用原始版本 */
+        /* 打印样式 */
         @media print {
             * {
                 -webkit-print-color-adjust: exact;
@@ -721,7 +737,6 @@
                 gap: 12px;
             }
             
-            /* 移动端按钮保持一行 */
             .controls {
                 flex-direction: row;
                 gap: 8px;
@@ -733,7 +748,11 @@
                 font-size: 14px;
             }
             
-            /* 移动端隐藏tooltip */
+            /* 优化1：移动端列表改为1列 */
+            .trips-list {
+                grid-template-columns: 1fr;
+            }
+            
             .tooltip {
                 display: none !important;
             }
@@ -752,7 +771,6 @@
         
         <div id="calendar" class="calendar-grid"></div>
         
-        <!-- 旅行计划列表移到底部 -->
         <div class="trips-section">
             <div class="section-title">📋 旅行计划列表</div>
             <div id="tripsList" class="trips-list"></div>
@@ -774,6 +792,8 @@
                 <div class="color-options" id="colorOptions"></div>
             </div>
             <div class="modal-actions">
+                <!-- 优化3&5：编辑模式时显示删除按钮 -->
+                <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;" onclick="deleteTripFromModal()">删除</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
                 <button type="submit" class="btn btn-primary" id="submitBtn">确认</button>
             </div>
@@ -843,6 +863,7 @@
         let currentEditIndex = -1;
         let modalStart = null;
         let modalEnd = null;
+        let currentHoverDate = null; // 优化2：记录当前悬停的日期
         
         // 检测是否为移动设备
         function isMobileDevice() {
@@ -876,7 +897,6 @@
             try {
                 const response = await fetch('/api/trips');
                 const serverTrips = await response.json();
-                // 如果服务器有数据，使用服务器数据；否则使用预设数据
                 trips = (serverTrips && serverTrips.length > 0) ? serverTrips : [...defaultTrips];
             } catch (error) {
                 console.log('使用预设旅行数据');
@@ -906,6 +926,9 @@
         }
         
         function setupEventListeners() {
+            const calendar = document.getElementById('calendar');
+            
+            // 点击事件
             document.addEventListener('click', (e) => {
                 const day = e.target.closest('.day');
                 if (!day || day.classList.contains('empty')) return;
@@ -922,6 +945,29 @@
                 // PC端：原有逻辑
                 handleDayClick(date, day);
             });
+            
+            // 优化2：PC端鼠标移动事件（悬停高亮）
+            if (!isMobileDevice()) {
+                calendar.addEventListener('mousemove', (e) => {
+                    if (isSelecting && firstSelectedDate) {
+                        const day = e.target.closest('.day');
+                        if (day && day.dataset.date && !day.classList.contains('empty') && !getTripForDate(day.dataset.date)) {
+                            const newHoverDate = day.dataset.date;
+                            if (newHoverDate !== currentHoverDate) {
+                                currentHoverDate = newHoverDate;
+                                render();
+                            }
+                        }
+                    }
+                });
+                
+                calendar.addEventListener('mouseleave', () => {
+                    if (isSelecting && currentHoverDate) {
+                        currentHoverDate = null;
+                        render();
+                    }
+                });
+            }
         }
         
         // 显示详情弹窗（移动端）
@@ -936,7 +982,6 @@
             const content = document.getElementById('detailContent');
             const actions = document.getElementById('detailActions');
             
-            // 如果是旅行日期
             if (trip) {
                 const days = getTripDays(trip);
                 title.textContent = trip.destination;
@@ -960,20 +1005,18 @@
                     </div>
                 `;
                 
-                // 如果旅行日期遇到调休
                 if (workday) {
                     contentHTML += `<div class="detail-reminder">💼 ${workday}</div>`;
                 }
                 
                 content.innerHTML = contentHTML;
                 
-                // 显示编辑和关闭按钮
+                // 优化4：编辑按钮灰色，关闭按钮绿色高亮
                 actions.innerHTML = `
                     <button class="detail-btn-edit" onclick="editTripFromDetail('${date}')">✏️ 编辑</button>
                     <button class="detail-btn-close" onclick="closeDetailModal()">关闭</button>
                 `;
             }
-            // 如果是节假日或调休日
             else if (holiday || workday) {
                 title.textContent = holiday || '调休日';
                 title.style.background = holiday ? '#f44336' : '#0066cc';
@@ -987,24 +1030,19 @@
                     ${workday ? `<div class="detail-reminder">💼 ${workday}</div>` : ''}
                 `;
                 
-                // 只显示关闭按钮（不可编辑）
                 actions.innerHTML = `
                     <button class="detail-btn-close" onclick="closeDetailModal()" style="width: 100%;">关闭</button>
                 `;
             }
-            // 普通日期
             else {
-                // 不显示弹窗，直接进入选择模式
                 handleDayClick(date, dayElement);
                 return;
             }
             
-            // 显示弹窗
             overlay.style.display = 'block';
             modal.style.display = 'block';
         }
         
-        // 从详情弹窗编辑旅行
         function editTripFromDetail(date) {
             closeDetailModal();
             const trip = getTripForDate(date);
@@ -1014,7 +1052,6 @@
             }
         }
         
-        // 关闭详情弹窗
         function closeDetailModal() {
             document.getElementById('detailModal').style.display = 'none';
             document.getElementById('modalOverlay').style.display = 'none';
@@ -1024,7 +1061,6 @@
             const trip = getTripForDate(date);
             
             if (trip) {
-                // PC端：点击旅行日期直接编辑
                 const index = trips.indexOf(trip);
                 editTrip(index);
                 return;
@@ -1033,7 +1069,8 @@
             if (!isSelecting) {
                 isSelecting = true;
                 firstSelectedDate = date;
-                lastSelectedDate = date;
+                lastSelectedDate = null;
+                currentHoverDate = null;
                 render();
             } else {
                 if (date < firstSelectedDate) {
@@ -1044,6 +1081,7 @@
                 
                 modalStart = firstSelectedDate;
                 modalEnd = lastSelectedDate;
+                currentHoverDate = null;
                 
                 showTripModal();
             }
@@ -1055,10 +1093,18 @@
             const title = document.getElementById('modalTitle');
             const dates = document.getElementById('modalDates');
             const submitBtn = document.getElementById('submitBtn');
+            const deleteBtn = document.getElementById('deleteBtn'); // 优化3：获取删除按钮
             
             title.textContent = currentEditIndex >= 0 ? '修改旅行' : '添加旅行';
             dates.textContent = `${firstSelectedDate} ~ ${lastSelectedDate}`;
             submitBtn.textContent = currentEditIndex >= 0 ? '更新' : '确认';
+            
+            // 优化3&5：编辑模式显示删除按钮，新建模式隐藏
+            if (currentEditIndex >= 0) {
+                deleteBtn.style.display = 'block';
+            } else {
+                deleteBtn.style.display = 'none';
+            }
             
             if (currentEditIndex >= 0) {
                 const trip = trips[currentEditIndex];
@@ -1106,6 +1152,17 @@
             closeModal();
         }
         
+        // 优化3&5：从弹窗中删除旅行
+        async function deleteTripFromModal() {
+            if (currentEditIndex >= 0) {
+                if (confirm('确定要删除这个旅行计划吗?')) {
+                    trips.splice(currentEditIndex, 1);
+                    await saveTrips();
+                    closeModal();
+                }
+            }
+        }
+        
         function closeModal() {
             document.getElementById('tripModal').style.display = 'none';
             document.getElementById('modalOverlay').style.display = 'none';
@@ -1115,6 +1172,7 @@
             currentEditIndex = -1;
             modalStart = null;
             modalEnd = null;
+            currentHoverDate = null;
             render();
         }
         
@@ -1157,12 +1215,21 @@
             return workdays[date];
         }
         
+        // 优化2：判断是否在选择范围内
         function isInSelectionRange(date) {
             if (!isSelecting || !firstSelectedDate) return false;
-            const current = lastSelectedDate || firstSelectedDate;
-            const start = firstSelectedDate < current ? firstSelectedDate : current;
-            const end = firstSelectedDate < current ? current : firstSelectedDate;
+            
+            const endDate = currentHoverDate || lastSelectedDate || firstSelectedDate;
+            const start = firstSelectedDate < endDate ? firstSelectedDate : endDate;
+            const end = firstSelectedDate < endDate ? endDate : firstSelectedDate;
+            
             return date > start && date < end;
+        }
+        
+        // 优化2：判断是否是悬停的结束日期
+        function isHoverEnd(date) {
+            if (!isSelecting || !firstSelectedDate || !currentHoverDate) return false;
+            return date === currentHoverDate && date !== firstSelectedDate;
         }
         
         function isSelectionComplete(date) {
@@ -1184,7 +1251,7 @@
             const list = document.getElementById('tripsList');
             
             if (trips.length === 0) {
-                list.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">暂无旅行计划，点击日历添加吧！</div>';
+                list.innerHTML = '<div style="text-align: center; color: #999; padding: 20px; grid-column: 1 / -1;">暂无旅行计划，点击日历添加吧！</div>';
                 return;
             }
             
@@ -1240,6 +1307,7 @@
                     const holiday = getHolidayForDate(dateStr);
                     const workday = getWorkdayForDate(dateStr);
                     const inSelection = isInSelectionRange(dateStr);
+                    const isHover = isHoverEnd(dateStr);
                     const isComplete = isSelectionComplete(dateStr);
                     
                     const inModalRange = modalStart && modalEnd && dateStr >= modalStart && dateStr <= modalEnd;
@@ -1267,10 +1335,13 @@
                         tooltipText = tooltipText ? `${tooltipText} | ${workday}` : workday;
                     }
                     
+                    // 优化2：添加悬停高亮样式
                     if (!trip) {
                         if (isSelecting) {
                             if (dateStr === firstSelectedDate) {
                                 className += ' selecting-start';
+                            } else if (isHover) {
+                                className += ' hover-end';
                             } else if (isComplete) {
                                 className += ' selection-complete';
                             } else if (inSelection) {
@@ -1297,7 +1368,6 @@
                 `;
             }).join('');
             
-            // PC端才添加tooltip监听
             if (!isMobileDevice()) {
                 addTooltipListeners();
             }
@@ -1367,31 +1437,25 @@
             window.print();
         }
         
-        // 导出为独立HTML文件 - 方案A：移除服务器依赖
         window.exportHTML = function() {
             console.log('导出的旅行数据:', trips);
             
-            // 1. 获取完整HTML
             let htmlContent = document.documentElement.outerHTML;
             
-            // 2. 替换trips数据（保留当前所有旅行）
             htmlContent = htmlContent.replace(
                 /let trips = \[[\s\S]*?\];/,
                 `let trips = ${JSON.stringify(trips)};`
             );
             
-            // 3. 修改init函数，移除服务器加载逻辑
             htmlContent = htmlContent.replace(
                 /async function init\(\) \{[\s\S]*?await loadTrips\(\);[\s\S]*?render\(\);[\s\S]*?setupEventListeners\(\);[\s\S]*?\}/,
                 `function init() {
-            // 导出版本：直接使用内嵌的旅行数据
             renderColorOptions();
             render();
             setupEventListeners();
         }`
             );
             
-            // 4. 创建下载
             const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -1407,7 +1471,6 @@
             location.reload();
         }
         
-        // 初始化
         init();
     </script>
 
