@@ -1,4 +1,6 @@
-<html lang="zh-CN"><head>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2025-2026 旅行日历</title>
@@ -345,13 +347,6 @@
             background: #d0d0d0;
         }
         
-        /* 响应式：移动端隐藏tooltip */
-        @media (max-width: 768px) {
-            .tooltip {
-                display: none !important;
-            }
-        }
-        
         .form-group {
             margin-bottom: 16px;
         }
@@ -496,7 +491,7 @@
             background: #f8f9fa;
             padding: 20px;
             border-radius: 15px;
-            margin-bottom: 25px;
+            margin-top: 25px;
         }
         
         .section-title {
@@ -599,39 +594,114 @@
             display: none;
         }
         
+        /* 打印样式 - 完全采用原始版本 */
         @media print {
-            body {
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            
+            html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
                 background: white;
+            }
+            
+            body {
+                background: white !important;
                 padding: 0;
             }
             
             .container {
                 box-shadow: none;
-                padding: 20px;
+                border-radius: 0;
+                padding: 2mm;
+                max-width: 100%;
+                margin: 0;
+                page-break-inside: avoid;
+                page-break-after: avoid;
             }
             
-            .controls,
-            .trips-section {
+            .controls, .trips-section {
                 display: none !important;
             }
             
+            h1 {
+                margin-bottom: 3px;
+                font-size: 14px;
+                page-break-after: avoid;
+            }
+            
             .calendar-grid {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 2px;
+                margin-bottom: 0;
                 page-break-inside: avoid;
             }
             
             .month-box {
                 page-break-inside: avoid;
+                break-inside: avoid;
+                padding: 3px;
+            }
+            
+            .month-title {
+                font-size: 8px;
+                margin-bottom: 2px;
+                padding-bottom: 2px;
+            }
+            
+            .weekdays {
+                gap: 1px;
+                margin-bottom: 2px;
+            }
+            
+            .weekday {
+                font-size: 5px;
+                padding: 1px 0;
+            }
+            
+            .days {
+                gap: 1px;
+            }
+            
+            .day {
+                font-size: 7px;
+                padding: 1px;
+                line-height: 1;
+                gap: 0;
+            }
+            
+            .day.holiday {
+                color: #ff0000 !important;
+                font-weight: 700;
+            }
+            
+            .day.trip.holiday {
+                color: white !important;
+            }
+            
+            .day:hover {
+                transform: none;
+            }
+            
+            @page {
+                size: A4 landscape;
+                margin: 3mm;
+            }
+            
+            .container::after {
+                content: "";
+                display: block;
+                height: 0;
+                page-break-after: avoid;
             }
         }
         
-        @media (max-width: 1200px) {
-            .calendar-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-        
+        /* 移动端优化 */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -651,12 +721,21 @@
                 gap: 12px;
             }
             
+            /* 移动端按钮保持一行 */
             .controls {
-                flex-direction: column;
+                flex-direction: row;
+                gap: 8px;
             }
             
             .controls button {
-                width: 100%;
+                flex: 1;
+                padding: 10px 5px;
+                font-size: 14px;
+            }
+            
+            /* 移动端隐藏tooltip */
+            .tooltip {
+                display: none !important;
             }
         }
     </style>
@@ -671,12 +750,13 @@
             <button class="btn-export" onclick="exportHTML()">📤 导出</button>
         </div>
         
+        <div id="calendar" class="calendar-grid"></div>
+        
+        <!-- 旅行计划列表移到底部 -->
         <div class="trips-section">
             <div class="section-title">📋 旅行计划列表</div>
             <div id="tripsList" class="trips-list"></div>
         </div>
-        
-        <div id="calendar" class="calendar-grid"></div>
     </div>
     
     <!-- 添加/编辑旅行的弹窗 -->
@@ -700,7 +780,7 @@
         </form>
     </div>
     
-    <!-- 新增：详情弹窗 -->
+    <!-- 详情弹窗 -->
     <div class="detail-modal" id="detailModal">
         <div class="detail-modal-header" id="detailTitle">详情</div>
         <div class="detail-modal-content" id="detailContent"></div>
@@ -745,6 +825,15 @@
             '2026-10-10': '调休上班'
         };
         
+        // 预设旅行数据
+        const defaultTrips = [
+            {start: '2025-10-23', end: '2025-11-05', destination: '澳洲', color: '#E74C3C'},
+            {start: '2025-12-05', end: '2025-12-13', destination: '越南芽庄', color: '#2ECC71'},
+            {start: '2026-01-14', end: '2026-01-23', destination: '北海道', color: '#3498DB'},
+            {start: '2026-02-15', end: '2026-02-25', destination: '越南富国岛', color: '#9B59B6'},
+            {start: '2026-07-25', end: '2026-08-03', destination: '坦桑尼亚', color: '#F39C12'}
+        ];
+        
         // 数据
         let trips = [];
         let selectedColor = COLORS[0];
@@ -786,10 +875,12 @@
         async function loadTrips() {
             try {
                 const response = await fetch('/api/trips');
-                trips = await response.json();
+                const serverTrips = await response.json();
+                // 如果服务器有数据，使用服务器数据；否则使用预设数据
+                trips = (serverTrips && serverTrips.length > 0) ? serverTrips : [...defaultTrips];
             } catch (error) {
-                console.error('加载数据失败:', error);
-                trips = [];
+                console.log('使用预设旅行数据');
+                trips = [...defaultTrips];
             }
         }
         
@@ -1276,16 +1367,31 @@
             window.print();
         }
         
-        // 导出为独立HTML文件（简化版 - 方案B）
+        // 导出为独立HTML文件 - 方案A：移除服务器依赖
         window.exportHTML = function() {
             console.log('导出的旅行数据:', trips);
             
-            // 直接使用当前页面的trips数据
-            const htmlContent = document.documentElement.outerHTML.replace(
-                /trips\s*=\s*\[[\s\S]*?\];/,
-                `trips = ${JSON.stringify(trips)};`
+            // 1. 获取完整HTML
+            let htmlContent = document.documentElement.outerHTML;
+            
+            // 2. 替换trips数据（保留当前所有旅行）
+            htmlContent = htmlContent.replace(
+                /let trips = \[[\s\S]*?\];/,
+                `let trips = ${JSON.stringify(trips)};`
             );
             
+            // 3. 修改init函数，移除服务器加载逻辑
+            htmlContent = htmlContent.replace(
+                /async function init\(\) \{[\s\S]*?await loadTrips\(\);[\s\S]*?render\(\);[\s\S]*?setupEventListeners\(\);[\s\S]*?\}/,
+                `function init() {
+            // 导出版本：直接使用内嵌的旅行数据
+            renderColorOptions();
+            render();
+            setupEventListeners();
+        }`
+            );
+            
+            // 4. 创建下载
             const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -1305,4 +1411,5 @@
         init();
     </script>
 
-</body></html>
+</body>
+</html>
