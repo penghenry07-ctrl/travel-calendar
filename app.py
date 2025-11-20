@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+import requests
 import json
 import os
 from datetime import datetime
@@ -7,23 +8,56 @@ from datetime import datetime
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-# 数据文件路径
-DATA_FILE = 'trips_data.json'
+# Supabase配置
+SUPABASE_URL = 'https://ddiddpxhwtksvеvcnaqf.supabase.co'
+SUPABASE_KEY = 'sb_publishable_BsB0FfR-ommhctDc7lA7QA_gtLS20bt'
 
-def load_trips():
-    """从文件加载旅行数据"""
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return []
-    return []
+def get_supabase_data():
+    """从Supabase获取数据"""
+    try:
+        response = requests.get(
+            f'{SUPABASE_URL}/rest/v1/trips_data?select=data&order=updated_at.desc&limit=1',
+            headers={
+                'apikey': SUPABASE_KEY,
+                'Authorization': f'Bearer {SUPABASE_KEY}'
+            }
+        )
+        
+        if response.ok and response.json():
+            return response.json()[0]['data']
+        return []
+    except Exception as e:
+        print(f'Error loading from Supabase: {e}')
+        return []
 
-def save_trips(trips):
-    """保存旅行数据到文件"""
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(trips, f, ensure_ascii=False, indent=2)
+def save_supabase_data(trips_data):
+    """保存数据到Supabase"""
+    try:
+        # 删除旧数据
+        delete_response = requests.delete(
+            f'{SUPABASE_URL}/rest/v1/trips_data?id=gte.0',
+            headers={
+                'apikey': SUPABASE_KEY,
+                'Authorization': f'Bearer {SUPABASE_KEY}'
+            }
+        )
+        
+        # 插入新数据
+        insert_response = requests.post(
+            f'{SUPABASE_URL}/rest/v1/trips_data',
+            json={'data': trips_data, 'updated_at': datetime.now().isoformat()},
+            headers={
+                'apikey': SUPABASE_KEY,
+                'Authorization': f'Bearer {SUPABASE_KEY}',
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            }
+        )
+        
+        return insert_response.ok
+    except Exception as e:
+        print(f'Error saving to Supabase: {e}')
+        return False
 
 @app.route('/')
 def index():
@@ -43,7 +77,7 @@ def favicon():
 @app.route('/api/trips', methods=['GET'])
 def get_trips():
     """获取所有旅行计划"""
-    trips = load_trips()
+    trips = get_supabase_data()
     return jsonify(trips)
 
 @app.route('/api/trips', methods=['POST'])
@@ -51,8 +85,12 @@ def save_all_trips():
     """保存所有旅行计划"""
     try:
         trips = request.json
-        save_trips(trips)
-        return jsonify({"success": True, "message": "保存成功"})
+        success = save_supabase_data(trips)
+        
+        if success:
+            return jsonify({"success": True, "message": "保存成功"})
+        else:
+            return jsonify({"success": False, "message": "保存失败"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -60,11 +98,15 @@ def save_all_trips():
 def delete_trip(index):
     """删除指定的旅行计划"""
     try:
-        trips = load_trips()
+        trips = get_supabase_data()
         if 0 <= index < len(trips):
             trips.pop(index)
-            save_trips(trips)
-            return jsonify({"success": True, "message": "删除成功"})
+            success = save_supabase_data(trips)
+            
+            if success:
+                return jsonify({"success": True, "message": "删除成功"})
+            else:
+                return jsonify({"success": False, "message": "删除失败"}), 500
         return jsonify({"success": False, "message": "索引无效"}), 400
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -75,6 +117,5 @@ def health():
     return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
 
 if __name__ == '__main__':
-    # 开发环境
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
