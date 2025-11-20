@@ -8,20 +8,23 @@ from datetime import datetime
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-# Supabase配置
-SUPABASE_URL = 'https://ddiddpxhwtksvеvcnaqf.supabase.co'
-SUPABASE_KEY = 'sb_publishable_BsB0FfR-ommhctDc7lA7QA_gtLS20bt'
+# Supabase配置 - 使用正确的URL和Key
+SUPABASE_URL = 'https://ddiddpxhwtksvevcnaqf.supabase.co'
+SUPABASE_KEY = 'sb_publishable_BsBOFfR-ommhctDc71A7QA_gtLS20bt'
 
 def get_supabase_data():
     """从Supabase获取数据"""
     try:
         response = requests.get(
-            f'{SUPABASE_URL}/rest/v1/trips_data?select=data&order=updated_at.desc&limit=1',
+            f'{SUPABASE_URL}/rest/v1/trips_data?select=data&order=id.desc&limit=1',
             headers={
                 'apikey': SUPABASE_KEY,
                 'Authorization': f'Bearer {SUPABASE_KEY}'
-            }
+            },
+            timeout=10
         )
+        
+        print(f'GET Response Status: {response.status_code}')
         
         if response.ok and response.json():
             return response.json()[0]['data']
@@ -33,30 +36,59 @@ def get_supabase_data():
 def save_supabase_data(trips_data):
     """保存数据到Supabase"""
     try:
-        # 删除旧数据
-        delete_response = requests.delete(
-            f'{SUPABASE_URL}/rest/v1/trips_data?id=gte.0',
+        # 先检查是否存在记录
+        check_response = requests.get(
+            f'{SUPABASE_URL}/rest/v1/trips_data?select=id&limit=1',
             headers={
                 'apikey': SUPABASE_KEY,
                 'Authorization': f'Bearer {SUPABASE_KEY}'
-            }
+            },
+            timeout=10
         )
         
-        # 插入新数据
-        insert_response = requests.post(
-            f'{SUPABASE_URL}/rest/v1/trips_data',
-            json={'data': trips_data, 'updated_at': datetime.now().isoformat()},
-            headers={
-                'apikey': SUPABASE_KEY,
-                'Authorization': f'Bearer {SUPABASE_KEY}',
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-            }
-        )
+        print(f'Check existing records: {check_response.status_code}')
         
-        return insert_response.ok
+        if check_response.ok and check_response.json():
+            # 有记录，使用PATCH更新
+            record_id = check_response.json()[0]['id']
+            response = requests.patch(
+                f'{SUPABASE_URL}/rest/v1/trips_data?id=eq.{record_id}',
+                json={'data': trips_data, 'updated_at': datetime.now().isoformat()},
+                headers={
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_KEY}',
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                timeout=10
+            )
+            print(f'PATCH Response: {response.status_code}')
+        else:
+            # 没有记录，使用POST插入
+            response = requests.post(
+                f'{SUPABASE_URL}/rest/v1/trips_data',
+                json={'data': trips_data, 'updated_at': datetime.now().isoformat()},
+                headers={
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_KEY}',
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                timeout=10
+            )
+            print(f'POST Response: {response.status_code}')
+        
+        if response.ok or response.status_code == 201:
+            print('Save successful!')
+            return True
+        else:
+            print(f'Save failed: {response.status_code} - {response.text}')
+            return False
+            
     except Exception as e:
         print(f'Error saving to Supabase: {e}')
+        import traceback
+        traceback.print_exc()
         return False
 
 @app.route('/')
@@ -85,6 +117,7 @@ def save_all_trips():
     """保存所有旅行计划"""
     try:
         trips = request.json
+        print(f'Saving {len(trips)} trips')
         success = save_supabase_data(trips)
         
         if success:
@@ -92,6 +125,9 @@ def save_all_trips():
         else:
             return jsonify({"success": False, "message": "保存失败"}), 500
     except Exception as e:
+        print(f'Save endpoint error: {e}')
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/trips/<int:index>', methods=['DELETE'])
